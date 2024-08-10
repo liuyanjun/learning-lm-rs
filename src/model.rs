@@ -252,43 +252,44 @@ pub fn test_load_safetensors() {
     assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
 
 }
-#[test]
-pub fn test_ld_safetensors() {
-    use std::path::PathBuf;
-    use crate::tensor::float_eq;
-    let project_dir = env!("CARGO_MANIFEST_DIR");
-    let model_dir = PathBuf::from(project_dir).join("models").join("story");
-    //let model = Llama::from_safetensors(model_dir);
 
-    let model_file = std::fs::read(model_dir.join("model.safetensors")).unwrap();
-    let safetensor = SafeTensors::deserialize(&model_file).unwrap();
-    println!("{:?}", safetensor.names());
-    // assert_eq!(loaded.names(), vec!["test"]);
-        // let tensor = loaded.tensor("test").unwrap();
-        // assert_eq!(tensor.shape(), vec![2, 2]);
-        // assert_eq!(tensor.dtype(), Dtype::I32);
+// pub fn test_ld_safetensors() {
+//     use std::path::PathBuf;
+//     use crate::tensor::float_eq;
+//     let project_dir = env!("CARGO_MANIFEST_DIR");
+//     let model_dir = PathBuf::from(project_dir).join("models").join("story");
+//     //let model = Llama::from_safetensors(model_dir);
+
+//     let model_file = std::fs::read(model_dir.join("model.safetensors")).unwrap();
+//     let safetensor = SafeTensors::deserialize(&model_file).unwrap();
+//     println!("{:?}", safetensor.names());
+    
+//     // assert_eq!(loaded.names(), vec!["test"]);
+//         // let tensor = loaded.tensor("test").unwrap();
+//         // assert_eq!(tensor.shape(), vec![2, 2]);
+//         // assert_eq!(tensor.dtype(), Dtype::I32);
         
-/* 
-        ["lm_head.weight", 
-        "model.layers.0.post_attention_layernorm.weight", 
-        "model.layers.1.self_attn.o_proj.weight", 
-        "model.layers.1.input_layernorm.weight", 
-        "model.layers.0.mlp.up_proj.weight", 
-        "model.layers.0.self_attn.v_proj.weight", 
-        "model.layers.1.self_attn.v_proj.weight", 
-        "model.layers.0.self_attn.o_proj.weight", 
-        "model.layers.1.self_attn.q_proj.weight", 
-        "model.layers.0.input_layernorm.weight", 
-        "model.layers.1.mlp.up_proj.weight", 
-        "model.layers.1.mlp.gate_proj.weight", 
-        "model.layers.1.self_attn.k_proj.weight", 
-        "model.norm.weight", 
-        "model.layers.1.mlp.down_proj.weight", 
-        "model.layers.0.self_attn.q_proj.weight", 
-        "model.layers.0.self_attn.k_proj.weight", 
-        "model.layers.0.mlp.down_proj.weight", 
-        "model.layers.1.post_attention_layernorm.weight", 
-        "model.layers.0.mlp.gate_proj.weight"]
-        */
+// /* 
+//         ["lm_head.weight", 
+//         "model.layers.0.post_attention_layernorm.weight", 
+//         "model.layers.1.self_attn.o_proj.weight", 
+//         "model.layers.1.input_layernorm.weight", 
+//         "model.layers.0.mlp.up_proj.weight", 
+//         "model.layers.0.self_attn.v_proj.weight", 
+//         "model.layers.1.self_attn.v_proj.weight", 
+//         "model.layers.0.self_attn.o_proj.weight", 
+//         "model.layers.1.self_attn.q_proj.weight", 
+//         "model.layers.0.input_layernorm.weight", 
+//         "model.layers.1.mlp.up_proj.weight", 
+//         "model.layers.1.mlp.gate_proj.weight", 
+//         "model.layers.1.self_attn.k_proj.weight", 
+//         "model.norm.weight", 
+//         "model.layers.1.mlp.down_proj.weight", 
+//         "model.layers.0.self_attn.q_proj.weight", 
+//         "model.layers.0.self_attn.k_proj.weight", 
+//         "model.layers.0.mlp.down_proj.weight", 
+//         "model.layers.1.post_attention_layernorm.weight", 
+//         "model.layers.0.mlp.gate_proj.weight"]
+//         */
 
-}
+// }
