@@ -71,25 +71,91 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+
+    //todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    assert!(x.size()==y.size());
+    assert!(x.shape()==x.shape());
+    assert!(x.shape()[1]==w.shape()[0]);
+
+    let num_line = x.shape()[0];
+    let num_col = x.shape()[1];
+
+    let _x = x.data();
+    let _y = unsafe{y.data_mut()};
+    let _w = w.data();
+
+    
+    let mut sum = 0f32;
+    for line in 0..num_line{
+        sum = 0f32;
+        for col in 0..num_col{
+            sum += _x[line * num_col + col] * _x[line * num_col + col];
+        }
+        
+        let k = (sum/(num_col as f32) + epsilon).sqrt().recip();
+
+        for col in 0..num_col{
+            _y[line * num_col + col] = k * _x[line * num_col + col] * _w[col];
+        }
+    }
+
+    
+
+
 }
 
 // y = sigmoid(x) * x * y
 // hint: this is an element-wise operation
 pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    let len = y.size();
+    assert!(len == x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
+    let _y = unsafe { y.data_mut() };
+    let _x = x.data();
+    for i in 0 ..len {
+        _y[i] = sigmoid(_x[i]) * _x[i] * _y[i];
+    }
+   
+    //todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+}
 
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+fn sigmoid(x: f32) ->f32{
+    1. / (1. + (-x).exp())
+}
+
+pub fn add(a: &mut Tensor<f32>, b: &Tensor<f32>){
+    let len = a.size();
+    let _a = unsafe{a.data_mut()};
+    let _b = b.data();
+    for i in 0..len{
+        _a[i] += _b[i];
+    }
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    //todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    // assert!(a.size()== b.size());
+    // assert!(a.shape() == b.shape());
+    let num_line = c.shape()[0];
+    let num_col = c.shape()[1];
+    
+    let _c = unsafe{c.data_mut()};
+    let _a = a.data();
+    let _b = b.data();
+    let a_row_len = a.shape()[1];
+
+   
+    for line in 0..num_line{
+        for col in 0..num_col{
+            _c[line * num_col + col] = beta * _c[line * num_col + col];
+            for j in 0..a_row_len{
+                _c[line * num_col + col] += alpha * _a[line * a_row_len + j] * _b[col * a_row_len + j];
+            }
+        }
+    }
+
 }
 
 // Dot product of two tensors (treated as vectors)

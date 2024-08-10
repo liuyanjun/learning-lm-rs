@@ -167,7 +167,22 @@ fn mlp(
     rms_w: &Tensor<f32>,
     eps: f32,
 ) {
-    todo!("Implement mlp");
+    //todo!("Implement mlp");
+
+    // hidden = rms_norm(residual)
+    OP::rms_norm( hidden_states, residual, rms_w, eps);
+    // gate = hidden @ gate_weight.T
+    OP::matmul_transb(gate, 0., hidden_states, w_gate, 1.);
+    // up = hidden @ up_weight.T
+    OP::matmul_transb(up, 0., hidden_states, w_up, 1.);
+    // hidden = gate * sigmoid(gate) * up ## silu
+
+    OP::silu(up, gate);
+    // hidden = hidden @ down_weight.T
+    OP::matmul_transb(hidden_states, 0., up, w_down, 1.);
+    // residual = hidden + residual
+    OP::add(residual, &hidden_states);
+
 }
 
 #[test]
@@ -235,5 +250,46 @@ pub fn test_load_safetensors() {
     assert!(float_eq(&model.params.wk[1].data()[100], &-0.21386719, 1e-6));
     assert!(float_eq(&model.params.wv[0].data()[100], &0.041015625, 1e-6));
     assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
+
+}
+#[test]
+pub fn test_ld_safetensors() {
+    use std::path::PathBuf;
+    use crate::tensor::float_eq;
+    let project_dir = env!("CARGO_MANIFEST_DIR");
+    let model_dir = PathBuf::from(project_dir).join("models").join("story");
+    //let model = Llama::from_safetensors(model_dir);
+
+    let model_file = std::fs::read(model_dir.join("model.safetensors")).unwrap();
+    let safetensor = SafeTensors::deserialize(&model_file).unwrap();
+    println!("{:?}", safetensor.names());
+    // assert_eq!(loaded.names(), vec!["test"]);
+        // let tensor = loaded.tensor("test").unwrap();
+        // assert_eq!(tensor.shape(), vec![2, 2]);
+        // assert_eq!(tensor.dtype(), Dtype::I32);
+        // // 16 bytes
+        // assert_eq!(tensor.data(), b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+/* 
+        ["lm_head.weight", 
+        "model.layers.0.post_attention_layernorm.weight", 
+        "model.layers.1.self_attn.o_proj.weight", 
+        "model.layers.1.input_layernorm.weight", 
+        "model.layers.0.mlp.up_proj.weight", 
+        "model.layers.0.self_attn.v_proj.weight", 
+        "model.layers.1.self_attn.v_proj.weight", 
+        "model.layers.0.self_attn.o_proj.weight", 
+        "model.layers.1.self_attn.q_proj.weight", 
+        "model.layers.0.input_layernorm.weight", 
+        "model.layers.1.mlp.up_proj.weight", 
+        "model.layers.1.mlp.gate_proj.weight", 
+        "model.layers.1.self_attn.k_proj.weight", 
+        "model.norm.weight", 
+        "model.layers.1.mlp.down_proj.weight", 
+        "model.layers.0.self_attn.q_proj.weight", 
+        "model.layers.0.self_attn.k_proj.weight", 
+        "model.layers.0.mlp.down_proj.weight", 
+        "model.layers.1.post_attention_layernorm.weight", 
+        "model.layers.0.mlp.gate_proj.weight"]
+        */
 
 }
