@@ -267,8 +267,7 @@ pub fn test_ld_safetensors() {
         // let tensor = loaded.tensor("test").unwrap();
         // assert_eq!(tensor.shape(), vec![2, 2]);
         // assert_eq!(tensor.dtype(), Dtype::I32);
-        // // 16 bytes
-        // assert_eq!(tensor.data(), b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+        
 /* 
         ["lm_head.weight", 
         "model.layers.0.post_attention_layernorm.weight", 
