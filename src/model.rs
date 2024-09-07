@@ -13,8 +13,10 @@ pub struct Llama<T> {
     n_layers: usize,        // number of layers
     n_q_h: usize,           // number of heads for q
     n_kv_h: usize,          // number of heads for k and v
+    /// 隐藏状态维度
     d: usize,               // dimension of hidden states
     dqkv: usize,            // length of a single q, k, or v vector
+    /// mlp 中间状态维度
     di: usize,              // dimension of intermediate states
     eps: f32,               // epsilon for RMS normalization
     rope_theta: f32,        // rope theta for rope initialization
@@ -52,28 +54,39 @@ impl Llama<f32> {
     pub fn new_cache(&self) -> KVCache<f32> {
         KVCache::new(self.n_layers, self.max_seq_len, self.n_kv_h * self.dqkv, 0)
     }
-
+    /// inference unit
     pub fn forward(&self, input: &Tensor<u32>, cache: &mut KVCache<f32>) -> Tensor<f32> {
+        /// 输入文本长度 6
         let seq_len = input.size();
+        /// 已处理文本长度
         let past_seq_len = cache.len();
+
         cache.increment(seq_len);
         let total_seq_len = past_seq_len + seq_len;
+        /// 计算 q 与 kv 的多头关系（倍数）
         let n_groups = self.n_q_h / self.n_kv_h;
 
         // Some pre-allocated buffers that will be reused
+        /// shape = 6 * 128
         let mut residual = Tensor::<f32>::default(&vec![seq_len, self.d]);
+        /// shape = 6 * 128
         let mut hidden_states = Tensor::<f32>::default(&vec![seq_len, self.d]);
+
         let mut q_buf = Tensor::<f32>::default(&vec![seq_len, self.n_q_h * self.dqkv]);
+        /// shape = 4 * 2 * 6 * 6
         let mut att_scores =
             Tensor::<f32>::default(&vec![self.n_kv_h, n_groups, seq_len, total_seq_len]);
+        /// shape = 6 * 384
         let mut gate_buf = Tensor::<f32>::default(&vec![seq_len, self.di]);
         let mut up_buf = Tensor::<f32>::default(&vec![seq_len, self.di]);
 
         // Computation Starts Here
         // Embedding lookup
+        /// 获取文本的词向量
         OP::gather(&mut residual, input, &self.params.embedding_table);
 
         for layer in 0..self.n_layers {
+            /// 归一化
             OP::rms_norm(
                 &mut hidden_states,
                 &residual,
@@ -82,11 +95,14 @@ impl Llama<f32> {
             );
 
             let q = (&mut q_buf).reshape(&vec![seq_len, self.n_q_h * self.dqkv]); // (seq, n_h * dqkv)
+            
             let k = &mut cache.k_cache(layer, past_seq_len); // (seq, n_kv_h * dqkv)
             let v = &mut cache.v_cache(layer, past_seq_len); // (seq, n_kv_h * dqkv)
+            /// 计算 q, k, v projection
             OP::matmul_transb(q, 0., &hidden_states, &self.params.wq[layer], 1.0);
             OP::matmul_transb(k, 0., &hidden_states, &self.params.wk[layer], 1.0);
             OP::matmul_transb(v, 0., &hidden_states, &self.params.wv[layer], 1.0);
+            /// 对q, k 施加位置嵌入旋转变换 
             OP::rope(
                 q.reshape(&vec![seq_len, self.n_q_h, self.dqkv]),
                 past_seq_len,
@@ -101,10 +117,34 @@ impl Llama<f32> {
             let full_k = &mut cache.k_cache(layer, 0); // (total_seq, n_kv_h * dqkv)
             let full_v = &mut cache.v_cache(layer, 0); // (total_seq, n_kv_h * dqkv)
 
-            todo!("self_attention(...)");
-            todo!("down_proj matmul and add residual");
+            //todo!("self_attention(...)");
+            self_attention(
+                &mut hidden_states,
+                &mut att_scores,
+                &q,
+                &k,
+                &v,
+                self.n_kv_h,
+                n_groups,
+                seq_len,
+                total_seq_len,
+                self.dqkv
+            );
+            //todo!("down_proj matmul and add residual");
 
-            todo!("mlp(...)");
+            //todo!("mlp(...)");
+            mlp(
+                &mut residual,
+                &mut hidden_states,
+                &mut gate_buf,
+                &mut up_buf,
+                &self.params.w_up[layer],
+                &self.params.w_down[layer],
+                &self.params.w_gate[layer],
+                &self.params.rms_ffn_w[layer],
+                self.eps
+
+            )
         }
 
         // No matter what seq_len, the output is always a 1D vector of length vocab,
@@ -142,6 +182,7 @@ impl Llama<f32> {
 }
 
 fn self_attention(
+    
     hidden_states: &mut Tensor<f32>, // (seq, n_kv_h * n_groups * dqkv)
     att_scores: &mut Tensor<f32>,    // (n_kv_h, n_groups, seq, total_seq)
     q: &Tensor<f32>,                 // (seq, n_kv_h * n_groups * dqkv)
@@ -154,6 +195,24 @@ fn self_attention(
     dqkv: usize,
 ) {
     todo!("Implement self_attention");
+    
+        // x = rms_norm(residual)
+        // Q = RoPE(x @ Q_weight.T)
+        // K = RoPE(x @ K_weight.T)
+        // V = x @ V_weight.T
+        // K = cat(K_cache, K)
+        // V = cat(V_cache, V)
+        // ### 以下是你需要实现的部分
+
+        // score = Q @ K.T / sqrt(dim)
+        // q.reshape(&vec![seq_len, ])
+        // attn = softmax(score)
+        // x = attn @ V
+        // x = x @ O_weight.T
+        // residual = x + residual
+   
+
+    
 }
 
 fn mlp(
@@ -168,6 +227,11 @@ fn mlp(
     eps: f32,
 ) {
     //todo!("Implement mlp");
+    /*
+    itermediate = gate * sigmoid(gate) * up ## silu
+    output = itermediate @ down_weight.T
+    residual = output + residual
+    */
 
     // hidden = rms_norm(residual)
     OP::rms_norm( hidden_states, residual, rms_w, eps);
@@ -175,12 +239,12 @@ fn mlp(
     OP::matmul_transb(gate, 0., hidden_states, w_gate, 1.);
     // up = hidden @ up_weight.T
     OP::matmul_transb(up, 0., hidden_states, w_up, 1.);
-    // hidden = gate * sigmoid(gate) * up ## silu
+    // itermediate = gate * sigmoid(gate) * up ## silu
 
     OP::silu(up, gate);
-    // hidden = hidden @ down_weight.T
+    // output = itermediate @ down_weight.T
     OP::matmul_transb(hidden_states, 0., up, w_down, 1.);
-    // residual = hidden + residual
+    // residual = output + residual
     OP::add(residual, &hidden_states);
 
 }
