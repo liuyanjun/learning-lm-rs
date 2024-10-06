@@ -74,11 +74,16 @@ pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: 
 
     //todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
     assert!(x.size()==y.size());
-    assert!(x.shape()==x.shape());
-    assert!(x.shape()[1]==w.shape()[0]);
+   // assert!(x.shape()==x.shape());
+    //assert!(x.shape()[1]==w.shape()[0]);
+    let shape = x.shape().clone();
+    let len = shape.len();
 
-    let num_line = x.shape()[0];
-    let num_col = x.shape()[1];
+    let num_col = shape[len - 1];
+    let mut num_line = 1;
+    for i in 0..(len-1){
+        num_line *= shape[i];
+    }
 
     let _x = x.data();
     let _y = unsafe{y.data_mut()};
@@ -98,9 +103,31 @@ pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: 
             _y[line * num_col + col] = k * _x[line * num_col + col] * _w[col];
         }
     }
+    // let shape = y.shape().clone();
+    // let len = shape.len();
+    // let last_dim = len - 1;
+    // let _y = unsafe { y.data_mut() };
+    // let _x = x.data();
+    // let _w = w.data();
 
+    // let mut ext_loop = 1;
+    // for i in 0..(shape.len() - 1) {
+    //     ext_loop *= shape[i];
+    // }
+    // let inner_size = shape[last_dim];
+
+    // for i in 0..ext_loop {
+    //     let mut xp = 0f32;
+    //     for j in 0..shape[last_dim] {
+    //         xp += _x[i * inner_size + j] * _x[i * inner_size + j];
+    //         _y[i * inner_size + j] = _w[j] * _x[i * inner_size + j];
+    //     }
+    //     xp = f32::sqrt(xp / inner_size as f32 + epsilon);
+    //     for j in 0..shape[last_dim] {
+    //         _y[i * inner_size + j] /= xp;
+    //     } 
     
-
+    // }
 
 }
 
@@ -157,6 +184,7 @@ pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor
     }
 
 }
+
 
 // Dot product of two tensors (treated as vectors)
 #[allow(unused)]

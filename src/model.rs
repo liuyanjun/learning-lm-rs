@@ -71,7 +71,7 @@ impl Llama<f32> {
         let mut residual = Tensor::<f32>::default(&vec![seq_len, self.d]);
         /// shape = 6 * 128
         let mut hidden_states = Tensor::<f32>::default(&vec![seq_len, self.d]);
-
+        /// 6 * 4 * 16
         let mut q_buf = Tensor::<f32>::default(&vec![seq_len, self.n_q_h * self.dqkv]);
         /// shape = 4 * 2 * 6 * 6
         let mut att_scores =
@@ -121,17 +121,18 @@ impl Llama<f32> {
             self_attention(
                 &mut hidden_states,
                 &mut att_scores,
-                &q,
-                &k,
-                &v,
+                q,
+                full_k,
+                full_v,
                 self.n_kv_h,
                 n_groups,
                 seq_len,
                 total_seq_len,
                 self.dqkv
             );
+            hidden_states.print();
             //todo!("down_proj matmul and add residual");
-
+            OP::matmul_transb(&mut residual, 1f32, &hidden_states, &self.params.wo[layer], 1.0f32);
             //todo!("mlp(...)");
             mlp(
                 &mut residual,
@@ -175,8 +176,21 @@ impl Llama<f32> {
     ) -> Vec<u32>{
         let mut result = Vec::<u32>::new();
         
-        todo!("实现文本生成");
-        
+        //todo!("实现文本生成");
+        for token in token_ids {
+            result.push(*token);
+        }
+        let mut input = Tensor::new(Vec::from(token_ids), &vec![1, token_ids.len()]);
+        let mut cache = self.new_cache();
+        for _ in 0..max_len {
+            let embed = self.forward(&input, &mut cache);
+            let token = OP::random_sample(&embed, top_p, top_k, temperature);
+            if token == 2{
+                break;
+            }
+            result.push(token);
+            input = Tensor::new(vec![token], &vec![1, 1]);
+        }
         result
     }
 }
@@ -194,7 +208,7 @@ fn self_attention(
     total_seq_len: usize,
     dqkv: usize,
 ) {
-    todo!("Implement self_attention");
+    //todo!("Implement self_attention");
     
         // x = rms_norm(residual)
         // Q = RoPE(x @ Q_weight.T)
@@ -210,9 +224,59 @@ fn self_attention(
         // x = attn @ V
         // x = x @ O_weight.T
         // residual = x + residual
-   
+    let qkv_dim = dqkv;
+    let seq_dim = n_kv_h * dqkv;
+    let hidden_len = n_kv_h * n_groups * dqkv;
+    let hidden_data = unsafe{
+        hidden_states.data_mut()
+    };
+    let att_dim_3 = total_seq_len;
+    let att_dim_2 = seq_len * total_seq_len;
+    let att_dim_1 = n_groups * seq_len * total_seq_len;
+    let att_ptr = unsafe{
+        att_scores.data_mut()
+    };
+    for x in 0..seq_len {
+        for y in 0..total_seq_len {
+            for i in 0..n_kv_h {
+                for group in 0..n_groups {
+                    let start_q = (i *n_groups + group) * qkv_dim + seq_dim * n_groups * x;
+                    let q_vec = &q.slice(start_q, &vec![16, 1]);
+                    let start_k = i * qkv_dim + seq_dim * y;
+                    let k_vec = &k.slice(start_k, &vec![16, 1]);
+                    let value = OP::dot(q_vec, k_vec)/f32::sqrt(qkv_dim as f32);
+                    
+                    att_ptr[i * att_dim_1 + group * att_dim_2 + x * att_dim_3 + y] = value;
+                }
+            }
+        }
+    }
 
-    
+    OP::masked_softmax(att_scores);
+    let v_ptr = v.data();
+    for i in 0..n_kv_h {
+        for g in 0..n_groups {
+            let att_start = att_dim_1 * i + g * att_dim_2;
+            let att_mat = &att_scores.slice(att_start, &vec![seq_len, total_seq_len]);
+            let mut data = vec![0f32; dqkv * total_seq_len];
+            for row in 0..dqkv{
+                let d_start = row * total_seq_len;
+                for col in 0..total_seq_len{
+                    data[d_start + col] = v_ptr[col * dqkv * n_kv_h + i*dqkv + row];
+                }
+            }
+            let v_mat = Tensor::new(data, &vec![dqkv, total_seq_len]);
+            let mut t_mat = Tensor::default(&vec![seq_len, dqkv]);
+            OP::matmul_transb(&mut t_mat, 0f32, att_mat, &v_mat, 1f32);
+            let t_data = t_mat.data();
+            for row in 0..seq_len{
+                for col in 0..dqkv{
+                    let hidden_p = row * hidden_len + (i * n_groups + g) *dqkv + col;
+                    hidden_data[hidden_p] = t_data[row * dqkv + col];
+                }
+            }
+        }
+    }
 }
 
 fn mlp(
